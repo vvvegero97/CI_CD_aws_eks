@@ -1,0 +1,72 @@
+pipeline {
+  agent { label 'Slave' }
+  environment {
+    AWS_ACCOUNT_ID     = "178112661675"
+    AWS_DEFAULT_REGION = "eu-north-1"
+    IMAGE_REPO_NAME    = "testrepo"
+    IMAGE_TAG          = "latest"
+    REPOSITORY_URI     = "\${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}"
+  }
+  stages {
+    stage('Docker version') {
+        steps {
+            sh "echo $USER"
+            sh 'docker version'
+        }
+    }
+    stage('Delete workspace before build starts') {
+        steps {
+            echo 'Deleting workspace'
+            deleteDir()
+        }
+    }
+    stage('Checkout') {
+        steps{
+          git branch: 'main', credentialsId: 'GitHub-SSH', url: 'git@github.com:vvvegero97/CI_CD_aws_eks.git'      
+        }
+    }
+    stage('Test') {
+        steps{
+            dir('webapp') {
+                sh "ls -la "
+                sh "pwd"
+            }
+                sh "ls -la "
+                sh "pwd"
+        }
+    }
+    stage('Build docker image') {
+        steps{
+            dir('webapp') {
+                sh "docker build -t \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:\${IMAGE_TAG} ."
+            }
+        }
+    }
+
+    stage('Tag docker image build number') {
+        steps{
+            sh "docker image tag \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:\${IMAGE_TAG} \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:\${BUILD_NUMBER}"
+        }
+    }
+
+    //after this point is a problem, most likely with login to ECR
+    stage('Push docker image to ECR') {
+        steps{
+            // withDockerRegistry(credentialsId: "ecr:\${AWS_DEFAULT_REGION}:aws-credentials", url: "https://\${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com") {
+            // aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com
+          sh '''
+              aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 178112661675.dkr.ecr.eu-north-1.amazonaws.com
+              docker push \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:${IMAGE_TAG}
+              docker push \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:${BUILD_NUMBER}
+              echo ${BUILD_NUMBER}
+          '''
+            // }
+        }
+    }
+    stage('Delete docker image locally') {
+        steps{
+            sh "docker rmi \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:\${IMAGE_TAG}"
+        }
+    }
+  }
+}
