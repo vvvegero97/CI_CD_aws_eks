@@ -48,9 +48,9 @@ helm version --short
 # create museum     : helm s3 init s3://vegero-helm-charts/stable/myapp
 # check creation    : aws s3 ls s3://vegero-helm-charts/stable/myapp/
 # add repo          : helm repo add stable-myapp s3://vegero-helm-charts/stable/myapp
-# package           : helm package ./<my-app>
-# push to museum    : helm s3 push ./<my-app>-0.1.0.tgz stable-myapp # chart version is from Chart.yaml
-# check after push  : helm search repo stable-myapp
+# package           : helm package ./webapp
+# push to museum    : helm s3 push ./webapp-0.1.0.tgz stable-myapp # chart version is from Chart.yaml
+# check after push  : helm repo update && helm search repo stable-myapp
 
 ## UPGRADE
 ## upgrade your chart (ex. replicaCount), chart version should be updated via CI/CD pipeline
