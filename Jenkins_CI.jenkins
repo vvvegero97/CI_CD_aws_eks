@@ -34,6 +34,8 @@ pipeline {
                 pwd
 
                 helm version
+                which helm
+                echo $PATH
 
                 LINES=`docker images | grep \${IMAGE_TAG} | grep \${IMAGE_REPO_NAME} | wc -l`
                 if [[ $LINES -eq 1 ]]
@@ -70,9 +72,10 @@ pipeline {
           sh '''
               echo "This is deploy script."
               echo "Chart bucket: \${CHART_S3}"
-              echo "Contents of bucket: "
-              aws s3 ls \${CHART_S3}
-              # helm s3 init s3://vegero-helm-charts/stable/myapp
+              #echo "Contents of bucket: "
+              #aws s3 ls \${CHART_S3}
+              helm s3 init s3://vegero-helm-charts/stable/myapp
+              helm repo add stable-myapp s3://vegero-helm-charts/stable/myapp
               helm repo update #${CHART_REPO} s3://vegero-helm-charts/stable/myapp
               helm repo list
               sed -i "s/app-name/\${APP_NAME}/g" ./Chart.yaml
@@ -83,15 +86,17 @@ pipeline {
           '''
         }
         sh '''
+            #helm s3 init s3://vegero-helm-charts/stable/myapp
+            #helm repo add stable-myapp s3://vegero-helm-charts/stable/myapp
             helm package ./app-chart
             ls -la
             VERSION=`cat ./app-chart/Chart.yaml | grep version | awk '{print $3}'`
             helm s3 push ./${APP_NAME}-${VERSION}.tgz ${CHART_REPO} --force
             helm repo update && helm search repo ${CHART_REPO}
-            aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com
-            docker pull ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}
-            docker images
-            docker rmi \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:\${IMAGE_TAG}              
+            #aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com
+            #docker pull ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}
+            #docker images
+            #docker rmi \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:\${IMAGE_TAG}              
         '''
       }
     }
@@ -99,6 +104,7 @@ pipeline {
       steps{
         sh '''
           #kubectl create namespace ${APP_NAME}-ns
+          helm version
           helm upgrade --install jenkins-\${BUILD_NUMBER} ${CHART_REPO}/${APP_NAME} --namespace default --cleanup-on-fail --wait
           echo "Deployment Successful !!!"
         '''
