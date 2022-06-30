@@ -3,8 +3,8 @@ pipeline {
   environment {
     AWS_ACCOUNT_ID     = "178112661675"
     AWS_DEFAULT_REGION = "eu-north-1"
-    // IMAGE_REPO_NAME    = "vegero-tg-ecr"
-    IMAGE_REPO_NAME    = "testrepo"
+    IMAGE_REPO_NAME    = "vegero-tg-ecr"
+    // IMAGE_REPO_NAME    = "testrepo"
     IMAGE_TAG          = "latest"
     REPOSITORY_URI     = "\${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}"
     CHART_S3           = "s3://vegero-helm-charts/stable/myapp/"
@@ -63,10 +63,8 @@ pipeline {
 
     stage('Push new Chart to Museum') {
       steps{
-        withCredentials([file(credentialsId: 'kubeconfigg', variable: 'KUBECRED')]) {
+        withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECRED')]) {
           sh 'cat $KUBECRED > ~/.kube/config'
-          // RELEASE_NAME = "\${BUILD_NUMBER}-app-\${GIT_COMMIT}"
-          // NAMESPACE = "\${BUILD_NUMBER}-app-ns"
         }
         dir ('app-chart'){
           sh '''
@@ -100,8 +98,8 @@ pipeline {
     stage('Deploy new chart to AWS EKS'){
       steps{
         sh '''
-          #helm upgrade --install jenkins-\${BUILD_NUMBER} ${CHART_REPO}/${APP_NAME} \
-          #--create-namespace --namespace ${APP_NAME}-ns --cleanup-on-fail --wait
+          kubectl create namespace ${APP_NAME}-ns
+          helm upgrade --install jenkins-\${BUILD_NUMBER} ${CHART_REPO}/${APP_NAME} --namespace ${APP_NAME}-ns --cleanup-on-fail --wait
           echo "Deployment Successful !!!"
         '''
       }
