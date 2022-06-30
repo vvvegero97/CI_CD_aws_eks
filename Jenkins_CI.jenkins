@@ -3,19 +3,14 @@ pipeline {
   environment {
     AWS_ACCOUNT_ID     = "178112661675"
     AWS_DEFAULT_REGION = "eu-north-1"
+    // IMAGE_REPO_NAME    = "vegero-tg-ecr"
     IMAGE_REPO_NAME    = "testrepo"
     IMAGE_TAG          = "latest"
     REPOSITORY_URI     = "\${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}"
   }
   stages {
-    stage('Docker version') {
-        steps {
-            sh "echo $USER"
-            sh 'docker version'
-        }
-    }
     stage('Delete workspace before build starts') {
-        steps {
+        steps{
             echo 'Deleting workspace'
             deleteDir()
         }
@@ -25,43 +20,56 @@ pipeline {
           git branch: 'main', credentialsId: 'GitHub-SSH', url: 'git@github.com:vvvegero97/CI_CD_aws_eks.git'      
         }
     }
-    stage('Test') {
-        steps{
-            dir('webapp') {
-                sh "ls -la "
-                sh "pwd"
-            }
-                sh "ls -la "
-                sh "pwd"
-        }
-    }
-    stage('Build docker image') {
+
+    stage('Build docker image and run tests') {
         steps{
             dir('webapp') {
                 sh "docker build -t \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:\${IMAGE_TAG} ."
             }
+            sh '''
+                ls -la 
+                pwd
+                
+                helm version
+
+                LINES=$(docker images | grep \${IMAGE_REPO_NAME}:\${IMAGE_TAG} | wc -l)
+
+                if [[ $LINES -e 1 ]]
+                then
+                  echo "Image is present!!!"
+                else
+                  echo "Image not present!!!"
+                fi
+              '''
         }
     }
 
-    stage('Tag docker image build number') {
-        steps{
-            sh "docker image tag \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:\${IMAGE_TAG} \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:\${BUILD_NUMBER}"
-        }
-    }
-
-    stage('Push docker image to ECR') {
+    stage('Tag docker image, Push images to ECR and delete Local images') {
         steps{
           sh '''
-              aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 178112661675.dkr.ecr.eu-north-1.amazonaws.com
+              docker image tag \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:\${IMAGE_TAG} \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:\${BUILD_NUMBER}
+              aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com
               docker push \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:${IMAGE_TAG}
               docker push \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:${BUILD_NUMBER}
-              echo ${BUILD_NUMBER}
+              echo Build number is \${BUILD_NUMBER}
+              docker rmi \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:\${IMAGE_TAG}
+              docker rmi \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:\${BUILD_NUMBER}
           '''
         }
     }
-    stage('Delete docker image locally') {
+    stage('Get the latest image from ECR') {
         steps{
-            sh "docker rmi \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:\${IMAGE_TAG}"
+          RELEASE_NAME = "\${BUILD_NUMBER}-app-\${GIT_COMMIT}"
+          NAMESPACE = "\${BUILD_NUMBER}-app-ns"
+          dir ('app-chart'){
+            sh '''
+                ## aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com
+                docker pull \${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:${IMAGE_TAG}
+                sed -i 's!sampleimage!\${AWS_ACCOUNT_ID}.dkr.ecr.\${AWS_DEFAULT_REGION}.amazonaws.com/\${IMAGE_REPO_NAME}:${IMAGE_TAG}!g' ./values.yaml
+                sed -i 's/default/\${BUILD_NUMBER}-app-ns/g' ./values.yaml
+                cat ./values.yaml
+            '''
+          }
         }
     }
   }
