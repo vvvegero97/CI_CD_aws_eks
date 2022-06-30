@@ -5,7 +5,7 @@ metadata:
   name: {{ .Release.Name }}-service
   labels:
     env: {{ .Values.labels.env }}
-  namespace: {{ .Values.labels.env }}
+  namespace: default
 spec:
   selector:
     env: {{ .Values.labels.env }}

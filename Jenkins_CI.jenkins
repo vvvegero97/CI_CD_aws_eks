@@ -98,8 +98,8 @@ pipeline {
     stage('Deploy new chart to AWS EKS'){
       steps{
         sh '''
-          kubectl create namespace ${APP_NAME}-ns
-          helm upgrade --install jenkins-\${BUILD_NUMBER} ${CHART_REPO}/${APP_NAME} --namespace ${APP_NAME}-ns --cleanup-on-fail --wait
+          #kubectl create namespace ${APP_NAME}-ns
+          helm upgrade --install jenkins-\${BUILD_NUMBER} ${CHART_REPO}/${APP_NAME} --namespace default --cleanup-on-fail --wait
           echo "Deployment Successful !!!"
         '''
       }
